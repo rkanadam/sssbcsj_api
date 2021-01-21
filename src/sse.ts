@@ -83,7 +83,6 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
             if (isEmpty(range)) {
                 const response = await sheets.spreadsheets.values.append({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
-                    range: `${SHEET_NAME}!${range}:${range}`,
                     requestBody: {
                         majorDimension: "ROWS",
                         values: [registration]
