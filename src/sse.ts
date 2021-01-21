@@ -79,8 +79,8 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
     if (!isEmpty(registrations) && registrations.length) {
         const sheets = openSheet();
         for (const registration of registrations) {
-            const range = registration[0];
-            if (isEmpty(range)) {
+            const range = registration[0] || "";
+            if (isEmpty(range) && range.trim().length <= 0) {
                 const response = await sheets.spreadsheets.values.append({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
                     requestBody: {
