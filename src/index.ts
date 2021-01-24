@@ -6,7 +6,9 @@ const init = async () => {
         port: 3006,
         host: 'localhost',
         routes: {
-            cors: true
+            cors: {
+                origin: ['http://region7saicenters.org', 'https://region7saicenters.org'],
+            }
         }
     });
     server.route({
