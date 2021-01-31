@@ -68,9 +68,7 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
                     },
                     valueInputOption: "RAW"
                 });
-                console.log(response);
             } else {
-                console.log(`${SHEET_NAME}!${range}:${range}`);
                 const response = await sheets.spreadsheets.values.update({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
                     range: `${SHEET_NAME}!${range}:${range}`,
@@ -80,7 +78,6 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
                     },
                     valueInputOption: "RAW"
                 })
-                console.log(response);
             }
         }
     }

@@ -50,7 +50,6 @@ const initializeFirebase = () => {
 
 const sendVerificationCode = async (req: Request, response: ResponseToolkit) => {
     const body = (req.payload as any);
-    console.log(body);
     const identityToolkit = google.identitytoolkit({
         auth: fs.readFileSync(GOOGLE_API_KEY_PATH).toString(),
         version: 'v3',
@@ -82,6 +81,10 @@ const verifySMSCode = async (req: Request, response: ResponseToolkit) => {
             sessionInfo: body.verificationToken
         }
     });
+
+
+    const phoneUser = await admin.auth().verifyIdToken(verificationResponse.data.idToken);
+    await admin.auth().deleteUser(phoneUser.uid);
 
     const user = req.auth.credentials.user as User;
     await admin
