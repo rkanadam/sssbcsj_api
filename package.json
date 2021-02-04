@@ -6,7 +6,7 @@
   "scripts": {
     "debug": "./node_modules/nodemon/bin/nodemon.js -e ts  --exec \"npm run start\"",
     "compile": "tsc",
-    "start": "tsc && node ./dist/index.js"
+    "start": "tsc && node --inspect ./dist/index.js"
   },
   "author": "",
   "license": "ISC",
