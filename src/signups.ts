@@ -2,6 +2,7 @@ import {google} from "googleapis";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import {authorize, User} from "./lib";
 import {isEmpty} from "lodash";
+import * as dateFormat from "dateformat";
 
 interface ParsedSheet {
     spreadsheetId: string;
@@ -20,18 +21,21 @@ interface SignupItem {
 }
 
 interface SignupSheet {
+    parsedDate: Date;
     date: string;
     location: string;
     tags: string[];
+    title: string;
     description: string;
     signups: Array<SignupItem>;
     spreadsheetId: string;
     sheetId: number;
+    sheetTitle: string;
 }
 
 interface Signup {
     spreadSheetId: string;
-    sheetId: string;
+    sheetTitle: string;
     itemIndex: string;
     itemCount: number;
 }
@@ -100,8 +104,10 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
         const locationAt = findIndex(values, "location");
         const tagsAt = findIndex(values, "tags");
         const descriptionAt = findIndex(values, "description");
+        const serviceTitleAt = findIndex(values, "title");
         const signupsStartAt = findIndex(values, "#");
         if (dateAt !== -1 && dateAt < signupsStartAt
+            && serviceTitleAt !== -1 && serviceTitleAt < signupsStartAt
             && locationAt !== -1 && locationAt < signupsStartAt
             && descriptionAt !== -1 && descriptionAt < signupsStartAt) {
             const signups = values.map((v, index) => {
@@ -119,7 +125,7 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
                         const notes = (v[NOTES_INDEX] || "").toString().trim();
                         const signup: SignupItem = {
                             item,
-                            itemIndex: index,
+                            itemIndex: index + 1,
                             quantity,
                             itemCount,
                             notes
@@ -137,11 +143,14 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
             if (isEmpty(tag) || tags.indexOf(tag) !== -1) {
                 values[descriptionAt].shift();
                 const ss: SignupSheet = {
+                    parsedDate: parsedSheet.date,
+                    title: values[serviceTitleAt][1] || "",
                     date: values[dateAt][1] || "",
                     location: values[locationAt][1] || "",
                     description: values[descriptionAt].join(" "),
                     spreadsheetId: parsedSheet.spreadsheetId,
                     sheetId: parsedSheet.sheetId,
+                    sheetTitle: parsedSheet.sheetTitle,
                     signups,
                     tags
                 }
@@ -149,43 +158,43 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
             }
         }
     }
+    signupSheets.sort((s1, s2) => s1.parsedDate.getTime() - s2.parsedDate.getTime());
     return signupSheets;
 }
 
-const saveSignup = async (req: Request, response: ResponseToolkit) => {
+const saveSignup = async (req: Request, h: ResponseToolkit) => {
     const signupToSave: Signup = (req.payload as Signup);
     const user = (req.auth.credentials.user as User)
     const gsheets = await google.sheets({version: "v4"});
-    let values = gsheets.spreadsheets.values.get({
+    const response = await gsheets.spreadsheets.values.get({
         spreadsheetId: signupToSave.spreadSheetId,
-        range: `${signupToSave.sheetId}:${signupToSave.itemIndex}`
+        range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`
     });
-    if (isEmpty(values)) {
-        const v = values[0];
-        const item = (v[ITEM_INDEX] || "").toString().trim();
-        const quantity = (v[QUANTITY_INDEX] || "").toString().trim();
-        const notes = (v[NOTES_INDEX] || "").toString().trim();
-        const itemCount = parseInt((v[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
-        if (itemCount > signupToSave.itemCount) {
-            const signupRowInSheet = [[...v]];
-            signupToSave[ITEM_COUNT_INDEX] = signupToSave.itemCount;
-            signupToSave[NAME_INDEX] = user.name;
-            signupToSave[EMAIL_INDEX] = user.email;
-            signupToSave[PHONE_NUMBER_INDEX] = user.phoneNumber;
+    const values = response.data.values;
+    if (!isEmpty(values)) {
+        const signupRowInSheet = values[0];
+        const itemCount = parseInt((signupRowInSheet[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
+        if (itemCount >= signupToSave.itemCount) {
+            const newSignupRow = [...signupRowInSheet];
+            newSignupRow[0] = dateFormat(new Date(), "ddd, mmm/dd/yyyy hh:MM:ss.l TT Z");
+            newSignupRow[ITEM_COUNT_INDEX] = signupToSave.itemCount;
+            newSignupRow[NAME_INDEX] = user.name;
+            newSignupRow[EMAIL_INDEX] = user.email;
+            newSignupRow[PHONE_NUMBER_INDEX] = user.phoneNumber;
             await gsheets.spreadsheets.values.append({
                 spreadsheetId: signupToSave.spreadSheetId,
-                range: `${signupToSave.sheetId}`,
+                range: `${signupToSave.sheetTitle}`,
                 requestBody: {
                     majorDimension: "ROWS",
-                    values: [signupRowInSheet]
+                    values: [newSignupRow]
                 },
                 valueInputOption: "RAW"
             })
 
-            v[ITEM_COUNT_INDEX] = itemCount - signupToSave.itemCount;
+            signupRowInSheet[ITEM_COUNT_INDEX] = itemCount - signupToSave.itemCount;
             await gsheets.spreadsheets.values.update({
                 spreadsheetId: signupToSave.spreadSheetId,
-                range: `${signupToSave.sheetId}:${signupToSave.itemIndex}`,
+                range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`,
                 requestBody: {
                     majorDimension: "ROWS",
                     values: [signupRowInSheet]
@@ -194,6 +203,7 @@ const saveSignup = async (req: Request, response: ResponseToolkit) => {
             })
         }
     }
+    return true;
 }
 
 export {listSignupSheets, saveSignup};
