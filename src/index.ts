@@ -1,14 +1,6 @@
-import {
-    Lifecycle,
-    Request,
-    ResponseObject,
-    ResponseToolkit,
-    Server,
-    ServerAuthSchemeObject,
-    ServerAuthSchemeOptions
-} from "@hapi/hapi";
+import {Lifecycle, Request, ResponseObject, ResponseToolkit, Server, ServerAuthSchemeObject} from "@hapi/hapi";
 import {getSSERegistrations, saveSSERegistrations} from "./sse";
-import {authorize, initializeFirebase, sendVerificationCode, User, verifySMSCode} from "./lib";
+import {authorize, initializeFirebase, sendEMail, sendSMS, sendVerificationCode, User, verifySMSCode} from "./lib";
 import {listSignupSheets, saveSignup} from "./signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
@@ -17,6 +9,8 @@ import * as admin from "firebase-admin";
 import * as BoomPlugin from "@hapi/boom";
 import {Boom} from "@hapi/boom";
 import * as blipp from "blipp";
+import * as Joi from "joi";
+import {admins} from "./admins";
 import ReturnValue = Lifecycle.ReturnValue;
 
 const init = async () => {
@@ -31,7 +25,7 @@ const init = async () => {
             }
         }
     });
-    server.auth.scheme("firebase", (server: Server, options?: ServerAuthSchemeOptions): ServerAuthSchemeObject => {
+    server.auth.scheme("firebase", (server: Server, options: any): ServerAuthSchemeObject => {
         const scheme: ServerAuthSchemeObject = {
             authenticate: async (request: Request, h: ResponseToolkit): Promise<Lifecycle.ReturnValue> => {
                 if (!request.yar.get("user")) {
@@ -50,6 +44,11 @@ const init = async () => {
                         phoneNumber: decodedToken.phone_number,
                         name: decodedToken.name
                     };
+                    if (options.adminsOnly) {
+                        if (admins.indexOf(user.email) !== -1) {
+                            throw BoomPlugin.unauthorized("This functionality is limited to administrators", 'admins');
+                        }
+                    }
                     request.yar.set({user})
                     return h.authenticated({
                         credentials: {
@@ -58,6 +57,11 @@ const init = async () => {
                     });
                 } else {
                     const user = request.yar.get("user");
+                    if (options.adminsOnly) {
+                        if (admins.indexOf(user.email) !== -1) {
+                            throw BoomPlugin.unauthorized("This functionality is limited to administrators", 'admins');
+                        }
+                    }
                     return h.authenticated({
                         credentials: {
                             user
@@ -70,13 +74,23 @@ const init = async () => {
     });
 
     server.auth.strategy('firebase', 'firebase', {});
+    server.auth.strategy('admin', 'firebase', {
+        adminsOnly: true
+    });
 
     server.auth.default('firebase');
 
     server.route({
         method: 'GET',
         path: '/sse',
-        handler: getSSERegistrations
+        handler: getSSERegistrations,
+        options: {
+            validate: {
+                query: Joi.object({
+                    q: Joi.string().min(3).max(255).optional().default("")
+                }).options({stripUnknown: true})
+            }
+        }
     });
     server.route({
         method: 'POST',
@@ -86,25 +100,93 @@ const init = async () => {
     server.route({
         method: 'GET',
         path: '/signups',
-        handler: listSignupSheets
+        handler: listSignupSheets,
+        options: {
+            validate: {
+                query: Joi.object({
+                    tag: Joi.string().min(1).max(255).optional().default("")
+                }).options({stripUnknown: true})
+            }
+        }
     });
     server.route({
         method: 'POST',
         path: '/signups',
-        handler: saveSignup
+        handler: saveSignup,
+        options: {
+            validate: {
+                payload: Joi.object({
+                    spreadSheetId: Joi.string().min(1).max(255).required(),
+                    sheetTitle: Joi.string().min(1).max(255).required(),
+                    itemIndex: Joi.number().integer().min(0).required(),
+                    itemCount: Joi.number().integer().min(0).required()
+                }).options({stripUnknown: true})
+            }
+        }
     });
 
     server.route({
         method: 'POST',
         path: '/profile/sendVerificationCode',
-        handler: sendVerificationCode
+        handler: sendVerificationCode,
+        options: {
+            validate: {
+                payload: Joi.object({
+                    phoneNumber: Joi.string().min(10).max(10).length(10).required(),
+                    recaptchaToken: Joi.string().min(10).max(255).required()
+                }).options({stripUnknown: true})
+            }
+        }
     });
     server.route({
         method: 'POST',
         path: '/profile/verifyPhoneSMSCode',
-        handler: verifySMSCode
+        handler: verifySMSCode,
+        options: {
+            validate: {
+                payload: Joi.object({
+                    verificationCode: Joi.string().min(1).max(10).required(),
+                    verificationToken: Joi.string().min(10).max(255).required()
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+    server.route({
+        method: 'POST',
+        path: '/sendSMS',
+        handler: (req: Request) => {
+            const {to, message} = req.payload as any;
+            return sendSMS(to, message);
+        },
+        options: {
+            auth: 'admin',
+            validate: {
+                payload: Joi.object({
+                    message: Joi.string().min(1).max(100).required(),
+                    to: Joi.string().min(10).max(10).length(10).required()
+                }).options({stripUnknown: true})
+            }
+        }
     });
 
+    server.route({
+        method: 'POST',
+        path: '/sendEMail',
+        handler: (req: Request) => {
+            const {to, subject, message} = req.payload as any;
+            return sendEMail(to, subject, message);
+        },
+        options: {
+            auth: 'admin',
+            validate: {
+                payload: Joi.object({
+                    message: Joi.string().min(10).max(2048).required(),
+                    subject: Joi.string().min(5).max(255).length(10).required(),
+                    to: Joi.string().min(10).max(10).length(10).required()
+                }).options({stripUnknown: true})
+            }
+        }
+    });
 
     initializeFirebase();
     await authorize();
@@ -134,6 +216,7 @@ const init = async () => {
         } else {
             const r = request.response as ResponseObject;
             if (r.statusCode >= 200 && r.statusCode < 300) {
+                console.log("req: ", request.path, r.statusCode, r.length);
             } else {
                 console.error("Path", request.path, "Status Code", r.statusCode);
             }
