@@ -1,7 +1,7 @@
 import {Lifecycle, Request, ResponseObject, ResponseToolkit, Server, ServerAuthSchemeObject} from "@hapi/hapi";
 import {getSSERegistrations, saveSSERegistrations} from "./sse";
 import {authorize, initializeFirebase, sendEMail, sendSMS, sendVerificationCode, User, verifySMSCode} from "./lib";
-import {listSignupSheets, saveSignup} from "./signups";
+import {getSignupSheet, listSignees, listSignupSheets, saveSignup} from "./signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -181,12 +181,42 @@ const init = async () => {
             validate: {
                 payload: Joi.object({
                     message: Joi.string().min(10).max(2048).required(),
-                    subject: Joi.string().min(5).max(255).length(10).required(),
+                    subject: Joi.string().min(5).max(255).required(),
                     to: Joi.string().min(10).max(10).length(10).required()
                 }).options({stripUnknown: true})
             }
         }
     });
+
+    server.route({
+        method: 'GET',
+        path: '/listSignees',
+        handler: listSignees,
+        options: {
+            auth: 'admin',
+            validate: {
+                query: Joi.object({
+                    spreadSheetId: Joi.string().min(5).max(1024).required(),
+                    sheetTitle: Joi.string().min(5).max(255).required()
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+
+    server.route({
+        method: 'GET',
+        path: '/signupSheet',
+        handler: getSignupSheet,
+        options: {
+            validate: {
+                query: Joi.object({
+                    spreadSheetId: Joi.string().min(5).max(1024).required(),
+                    sheetTitle: Joi.string().min(5).max(255).required()
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+
 
     initializeFirebase();
     await authorize();
@@ -216,7 +246,7 @@ const init = async () => {
         } else {
             const r = request.response as ResponseObject;
             if (r.statusCode >= 200 && r.statusCode < 300) {
-                console.log("req: ", request.path, r.statusCode, r.length);
+                console.log("req: ", request.path, r.statusCode);
             } else {
                 console.error("Path", request.path, "Status Code", r.statusCode);
             }
