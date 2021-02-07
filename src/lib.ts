@@ -4,6 +4,7 @@ import * as admin from "firebase-admin";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import * as twilio from "twilio";
 import {NodeMailgun} from 'ts-mailgun';
+import {admins} from "./admins";
 
 
 const SCOPES = [
@@ -108,21 +109,30 @@ const verifySMSCode = async (req: Request, response: ResponseToolkit) => {
     return true;
 }
 
-const sendSMS = (to: string, message: string) => {
-    return twilioApi.messages.create({
-        body: message,
-        to,
-        from: twilioApiKeys.from
-    })
-        .then((message) => {
-            console.log(`SMS was sent to ${to} from ${twilioApiKeys.from}. Message SID: ${message.sid}`);
-            return true;
-        });
+const sendSMS = async (messages: Array<{ to: string, message: string }>) => {
+    for (const message of messages) {
+        await twilioApi.messages.create({
+            body: message.message,
+            to: message.to,
+            from: twilioApiKeys.from
+        })
+            .then((message) => {
+                console.log(`SMS was sent to ${message.to} from ${twilioApiKeys.from}. Message SID: ${message.sid}`);
+            });
+    }
+    return true;
 }
 
-const sendEMail = (to: string, subject: string, message: string) => {
-    return mailGunApi.send(to, subject, message).then(() => true);
+const sendEMail = async (messages: Array<{ to: string, subject: string, message: string }>) => {
+    for (const message of messages) {
+        await mailGunApi.send(message.to, message.subject, message.message).then(() => true);
+    }
+    return true;
+}
+
+const isAdmin = (u: User) => {
+    return admins.indexOf(u.email) !== -1;
 }
 
 
-export {authorize, initializeFirebase, sendVerificationCode, verifySMSCode, sendSMS, sendEMail, User};
+export {authorize, initializeFirebase, sendVerificationCode, verifySMSCode, sendSMS, sendEMail, User, isAdmin};

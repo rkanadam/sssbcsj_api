@@ -45,7 +45,7 @@ const init = async () => {
                         name: decodedToken.name
                     };
                     if (options.adminsOnly) {
-                        if (admins.indexOf(user.email) !== -1) {
+                        if (admins.indexOf(user.email) === -1) {
                             throw BoomPlugin.unauthorized("This functionality is limited to administrators", 'admins');
                         }
                     }
@@ -58,7 +58,7 @@ const init = async () => {
                 } else {
                     const user = request.yar.get("user");
                     if (options.adminsOnly) {
-                        if (admins.indexOf(user.email) !== -1) {
+                        if (admins.indexOf(user.email) === -1) {
                             throw BoomPlugin.unauthorized("This functionality is limited to administrators", 'admins');
                         }
                     }
@@ -155,16 +155,17 @@ const init = async () => {
         method: 'POST',
         path: '/sendSMS',
         handler: (req: Request) => {
-            const {to, message} = req.payload as any;
-            return sendSMS(to, message);
+            const smsMessages: Array<{ to, message }> = req.payload as any;
+            return sendSMS(smsMessages);
         },
         options: {
             auth: 'admin',
             validate: {
-                payload: Joi.object({
-                    message: Joi.string().min(1).max(100).required(),
-                    to: Joi.string().min(10).max(10).length(10).required()
-                }).options({stripUnknown: true})
+                payload: Joi.array().items(
+                    Joi.object({
+                        message: Joi.string().min(1).max(1024).required(),
+                        to: Joi.string().min(10).max(12).required()
+                    })).options({stripUnknown: true})
             }
         }
     });
@@ -173,17 +174,17 @@ const init = async () => {
         method: 'POST',
         path: '/sendEMail',
         handler: (req: Request) => {
-            const {to, subject, message} = req.payload as any;
-            return sendEMail(to, subject, message);
+            const messages: Array<{ to: string, subject: string, message: string }> = req.payload as any;
+            return sendEMail(messages);
         },
         options: {
             auth: 'admin',
             validate: {
-                payload: Joi.object({
-                    message: Joi.string().min(10).max(2048).required(),
-                    subject: Joi.string().min(5).max(255).required(),
-                    to: Joi.string().min(10).max(10).length(10).required()
-                }).options({stripUnknown: true})
+                payload: Joi.array().items(Joi.object({
+                    message: Joi.string().min(10).max(10240).required(),
+                    subject: Joi.string().min(5).max(512).required(),
+                    to: Joi.string().min(5).max(255).required()
+                })).options({stripUnknown: true})
             }
         }
     });

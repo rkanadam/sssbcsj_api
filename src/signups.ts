@@ -1,6 +1,6 @@
 import {google} from "googleapis";
 import {Request, ResponseToolkit} from "@hapi/hapi";
-import {authorize, User} from "./lib";
+import {authorize, isAdmin, User} from "./lib";
 import {isEmpty} from "lodash";
 import * as dateFormat from "dateformat";
 
@@ -25,7 +25,8 @@ interface SignupSheet {
     tags: string[];
     title: string;
     description: string;
-    signups: Array<SignupItem>;
+    signupItems: Array<SignupItem>;
+    signees?: Array<Signee>;
     spreadsheetId: string;
     sheetTitle: string;
 }
@@ -33,8 +34,15 @@ interface SignupSheet {
 interface Signup {
     spreadSheetId: string;
     sheetTitle: string;
-    itemIndex: string;
+    itemIndex: number;
     itemCount: number;
+}
+
+interface Signee extends SignupItem {
+    name: string;
+    phoneNumber: string;
+    email: string;
+    signedUpOn: Date;
 }
 
 
@@ -43,6 +51,7 @@ const findIndex = (values: any[][], valueToSearchFor: string) => {
     return values.findIndex(v => (v[0] || "").toString().toLowerCase().trim().indexOf(vs) !== -1);
 }
 
+const SIGNED_UP_ON_INDEX = 0;
 const ITEM_INDEX = 1;
 const QUANTITY_INDEX = 2;
 const ITEM_COUNT_INDEX = 3;
@@ -104,34 +113,46 @@ const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
     const descriptionAt = findIndex(values, "description");
     const serviceTitleAt = findIndex(values, "title");
     const signupsStartAt = findIndex(values, "#");
+    const isAnAdmin = isAdmin(req.auth.credentials.user as User);
     if (dateAt !== -1 && dateAt < signupsStartAt
         && serviceTitleAt !== -1 && serviceTitleAt < signupsStartAt
         && locationAt !== -1 && locationAt < signupsStartAt
         && descriptionAt !== -1 && descriptionAt < signupsStartAt) {
-        const signups = values.map((v, index) => {
+        const signupItems = new Array<SignupItem>();
+        const signees = new Array<Signee>();
+        values.forEach((v, index) => {
             if (index <= signupsStartAt) {
                 return null;
             }
             const name = (v[NAME_INDEX] || "").toString().trim();
             const email = (v[EMAIL_INDEX] || "").toString().trim();
             const phoneNumber = (v[PHONE_NUMBER_INDEX] || "").toString().trim();
+            const item = (v[ITEM_INDEX] || "").toString().trim();
+            const quantity = (v[QUANTITY_INDEX] || "").toString().trim();
+            const itemCount = parseInt((v[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
+            const notes = (v[NOTES_INDEX] || "").toString().trim();
+            const signup: SignupItem = {
+                item,
+                itemIndex: index + 1,
+                quantity,
+                itemCount,
+                notes
+            };
             if (isEmpty(name) && isEmpty(email) && isEmpty(phoneNumber)) {
-                const item = (v[ITEM_INDEX] || "").toString().trim();
-                const quantity = (v[QUANTITY_INDEX] || "").toString().trim();
-                const itemCount = parseInt((v[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
                 if (itemCount > 0) {
-                    const notes = (v[NOTES_INDEX] || "").toString().trim();
-                    const signup: SignupItem = {
-                        item,
-                        itemIndex: index + 1,
-                        quantity,
-                        itemCount,
-                        notes
-                    };
-                    return signup;
+                    signupItems.push(signup);
                 }
+            } else {
+                const signee: Signee = {
+                    ...signup,
+                    signedUpOn: new Date(v[SIGNED_UP_ON_INDEX]),
+                    name,
+                    email,
+                    phoneNumber
+                }
+                signees.push(signee);
             }
-        }).filter(s => s);
+        })
         let tags = [];
         if (tagsAt !== -1 && tagsAt <= signupsStartAt) {
             values[tagsAt].shift();
@@ -145,7 +166,8 @@ const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
             description: values[descriptionAt].join(" "),
             spreadsheetId: spreadSheetId,
             sheetTitle: sheetTitle,
-            signups,
+            signupItems: signupItems,
+            signees: isAnAdmin ? signees : null,
             tags
         }
         return ss;
@@ -166,7 +188,7 @@ const saveSignup = async (req: Request, h: ResponseToolkit) => {
         const itemCount = parseInt((signupRowInSheet[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
         if (itemCount >= signupToSave.itemCount) {
             const newSignupRow = [...signupRowInSheet];
-            newSignupRow[0] = dateFormat(new Date(), "ddd, mmm/dd/yyyy hh:MM:ss.l TT Z");
+            newSignupRow[SIGNED_UP_ON_INDEX] = dateFormat(new Date(), "ddd, mmm/dd/yyyy hh:MM:ss.l TT Z");
             newSignupRow[ITEM_COUNT_INDEX] = signupToSave.itemCount;
             newSignupRow[NAME_INDEX] = user.name;
             newSignupRow[EMAIL_INDEX] = user.email;
