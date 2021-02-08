@@ -1,7 +1,7 @@
 import {Lifecycle, Request, ResponseObject, ResponseToolkit, Server, ServerAuthSchemeObject} from "@hapi/hapi";
 import {getSSERegistrations, saveSSERegistrations} from "./sse";
 import {authorize, initializeFirebase, sendEMail, sendSMS, sendVerificationCode, User, verifySMSCode} from "./lib";
-import {getSignupSheet, listSignees, listSignupSheets, saveSignup} from "./signups";
+import {getSignupSheet, getSignupSheets, saveSignup} from "./signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -85,6 +85,7 @@ const init = async () => {
         path: '/sse',
         handler: getSSERegistrations,
         options: {
+            auth: false,
             validate: {
                 query: Joi.object({
                     q: Joi.string().min(3).max(255).optional().default("")
@@ -95,12 +96,17 @@ const init = async () => {
     server.route({
         method: 'POST',
         path: '/sse',
+        options: {
+            auth: false
+        },
         handler: saveSSERegistrations
     });
     server.route({
         method: 'GET',
         path: '/signups',
-        handler: listSignupSheets,
+        handler: (req: Request) => {
+            return getSignupSheets(false);
+        },
         options: {
             validate: {
                 query: Joi.object({
@@ -191,23 +197,12 @@ const init = async () => {
 
     server.route({
         method: 'GET',
-        path: '/listSignees',
-        handler: listSignees,
-        options: {
-            auth: 'admin',
-            validate: {
-                query: Joi.object({
-                    spreadSheetId: Joi.string().min(5).max(1024).required(),
-                    sheetTitle: Joi.string().min(5).max(255).required()
-                }).options({stripUnknown: true})
-            }
-        }
-    });
-
-    server.route({
-        method: 'GET',
         path: '/signupSheet',
-        handler: getSignupSheet,
+        handler: (req: Request) => {
+            const {spreadSheetId, sheetTitle} = req.query as any;
+            const user = req.auth.credentials.user as User;
+            return getSignupSheet(spreadSheetId, sheetTitle, user);
+        },
         options: {
             validate: {
                 query: Joi.object({

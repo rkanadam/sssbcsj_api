@@ -3,6 +3,8 @@ import {Request, ResponseToolkit} from "@hapi/hapi";
 import {authorize, isAdmin, User} from "./lib";
 import {isEmpty} from "lodash";
 import * as dateFormat from "dateformat";
+import * as csvWriter from 'csv-write-stream';
+import {Writable} from "stream";
 
 interface ParsedSheet {
     spreadsheetId: string;
@@ -60,7 +62,7 @@ const PHONE_NUMBER_INDEX = 5;
 const EMAIL_INDEX = 6;
 const NOTES_INDEX = 7;
 
-const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
+async function getSignupSheets(getAllSheetsForExport: boolean) {
     const spreadsheets = await google.drive({version: 'v3', auth: authorize()}).files.list({
         spaces: "drive",
         q: "mimeType='application/vnd.google-apps.spreadsheet'"
@@ -81,7 +83,7 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
             const dateMatch = /\d{4}-\d{2}-\d{2}/.exec(s1.properties.title);
             if (dateMatch) {
                 const date = new Date(dateMatch[0]);
-                if (date.getTime() >= now.getTime()) {
+                if (getAllSheetsForExport || date.getTime() >= now.getTime()) {
                     const ps: ParsedSheet =
                         {
                             date,
@@ -99,8 +101,12 @@ const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
     return parsedSheets;
 }
 
-const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
-    const {spreadSheetId, sheetTitle} = req.query as any;
+const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
+    const getAllSheetsForExport = false;
+    return await getSignupSheets(getAllSheetsForExport);
+}
+
+async function getSignupSheet(spreadSheetId, sheetTitle, user: User): Promise<SignupSheet | null> {
     const gsheets = google.sheets({version: 'v4'});
     const spreadsheet = await gsheets.spreadsheets.values.get({
         spreadsheetId: spreadSheetId,
@@ -113,7 +119,7 @@ const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
     const descriptionAt = findIndex(values, "description");
     const serviceTitleAt = findIndex(values, "title");
     const signupsStartAt = findIndex(values, "#");
-    const isAnAdmin = isAdmin(req.auth.credentials.user as User);
+    const isAnAdmin = isAdmin(user);
     if (dateAt !== -1 && dateAt < signupsStartAt
         && serviceTitleAt !== -1 && serviceTitleAt < signupsStartAt
         && locationAt !== -1 && locationAt < signupsStartAt
@@ -143,14 +149,16 @@ const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
                     signupItems.push(signup);
                 }
             } else {
-                const signee: Signee = {
-                    ...signup,
-                    signedUpOn: new Date(v[SIGNED_UP_ON_INDEX]),
-                    name,
-                    email,
-                    phoneNumber
+                if (isAnAdmin || email === user.email) {
+                    const signee: Signee = {
+                        ...signup,
+                        signedUpOn: new Date(v[SIGNED_UP_ON_INDEX]),
+                        name,
+                        email,
+                        phoneNumber
+                    }
+                    signees.push(signee);
                 }
-                signees.push(signee);
             }
         })
         let tags = [];
@@ -172,6 +180,7 @@ const getSignupSheet = async (req: Request, h: ResponseToolkit) => {
         }
         return ss;
     }
+    return null;
 }
 
 const saveSignup = async (req: Request, h: ResponseToolkit) => {
@@ -237,5 +246,17 @@ const listSignees = async (req: Request, h: ResponseToolkit) => {
     return [];
 }
 
+const exportSignups = (req: Request, h: ResponseToolkit) => {
+    const w = new Writable();
+    const writer = new csvWriter({
+        separator: ',',
+        newline: '\n',
+        headers: ["#", "Item", "Quantity", "Item Count", "Name", "Phone Number", "E-Mail", "Notes", "Title", "Description", "Drop Off Location", "Drop Off Date", "Tags"],
+        sendHeaders: true
+    });
+    writer.pipe(w);
+    return h.response(w);
+};
 
-export {listSignupSheets, getSignupSheet, saveSignup, listSignees};
+
+export {listSignupSheets, getSignupSheet, saveSignup, getSignupSheets, exportSignups};
