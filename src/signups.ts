@@ -3,8 +3,10 @@ import {Request, ResponseToolkit} from "@hapi/hapi";
 import {authorize, isAdmin, User} from "./lib";
 import {isEmpty} from "lodash";
 import * as dateFormat from "dateformat";
-import * as csvWriter from 'csv-write-stream';
-import {Writable} from "stream";
+import * as temp from "temp";
+import * as stringify from 'csv-stringify';
+import {createReadStream} from "fs";
+
 
 interface ParsedSheet {
     spreadsheetId: string;
@@ -112,7 +114,6 @@ const getUserSignups = async (user: User) => {
     }
     return userSignups;
 }
-
 
 async function getDetailedSignupSheet(spreadSheetId, sheetTitle, user: User, listAllSignups = false): Promise<SignupSheet | null> {
     const gsheets = google.sheets({version: 'v4'});
@@ -254,16 +255,50 @@ const listSignees = async (req: Request, h: ResponseToolkit) => {
     return [];
 }
 
-const exportSignups = (req: Request, h: ResponseToolkit) => {
-    const w = new Writable();
-    const writer = new csvWriter({
-        separator: ',',
-        newline: '\n',
-        headers: ["#", "Item", "Quantity", "Item Count", "Name", "Phone Number", "E-Mail", "Notes", "Title", "Description", "Drop Off Location", "Drop Off Date", "Tags"],
-        sendHeaders: true
+const exportSignups = async (user: User) => {
+    const summarizedSignupSheets = await getSummarizedSignupSheets(true);
+    temp.track();
+    const tempStream = temp.createWriteStream();
+    const csvStream = stringify({
+        header: true,
+        columns: {
+            date: 'date',
+            location: 'location',
+            title: 'title',
+            description: 'description',
+            item: 'item',
+            quantity: 'quantity',
+            itemCount: 'itemCount',
+            notes: 'notes',
+            name: 'name',
+            email: 'email',
+            phoneNumber: 'phoneNumber',
+            signedUpOn: 'signedUpOn'
+        }
     });
-    writer.pipe(w);
-    return h.response(w);
+    csvStream.pipe(tempStream)
+    for (const summarizedSignupSheet of summarizedSignupSheets) {
+        const detailedSignupSheet = await getDetailedSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
+        if (!isEmpty(detailedSignupSheet) && !isEmpty(detailedSignupSheet.signees)) {
+            for (const signee of detailedSignupSheet.signees) {
+                csvStream.write([
+                    dateFormat(summarizedSignupSheet.date, "mm/dd/yyyy"),
+                    detailedSignupSheet.location,
+                    detailedSignupSheet.title,
+                    detailedSignupSheet.description,
+                    signee.item,
+                    signee.quantity,
+                    signee.itemCount,
+                    signee.notes,
+                    signee.name,
+                    signee.email,
+                    signee.phoneNumber,
+                    dateFormat(signee.signedUpOn, "mm/dd/yyyy hh:MM:ss.l TT Z")
+                ])
+            }
+        }
+    }
+    return createReadStream(tempStream.path.toString())
 };
 
 

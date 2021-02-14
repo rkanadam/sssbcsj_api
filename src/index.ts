@@ -1,7 +1,16 @@
 import {Lifecycle, Request, ResponseObject, ResponseToolkit, Server, ServerAuthSchemeObject} from "@hapi/hapi";
 import {getSSERegistrations, saveSSERegistrations} from "./sse";
-import {authorize, initializeFirebase, sendEMail, sendSMS, sendVerificationCode, User, verifySMSCode} from "./lib";
-import {getDetailedSignupSheet, getSummarizedSignupSheets, getUserSignups, saveSignup} from "./signups";
+import {
+    authorize,
+    initializeFirebase,
+    isAdmin,
+    sendEMail,
+    sendSMS,
+    sendVerificationCode,
+    User,
+    verifySMSCode
+} from "./lib";
+import {exportSignups, getDetailedSignupSheet, getSummarizedSignupSheets, getUserSignups, saveSignup} from "./signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -11,6 +20,7 @@ import {Boom} from "@hapi/boom";
 import * as blipp from "blipp";
 import * as Joi from "joi";
 import {admins} from "./admins";
+import * as dateFormat from "dateformat";
 import ReturnValue = Lifecycle.ReturnValue;
 
 const init = async () => {
@@ -214,6 +224,32 @@ const init = async () => {
                     to: Joi.string().min(5).max(255).required()
                 })).options({stripUnknown: true})
             }
+        }
+    });
+
+    server.route({
+        method: 'GET',
+        path: '/export',
+        handler: async (req: Request, h: ResponseToolkit) => {
+            const user = req.auth.credentials.user as User;
+            const stream = await exportSignups(user);
+            const date = dateFormat(new Date(), "mmddyyyy_HHMMss")
+            return h.response(stream)
+                .type('text/css')
+                .header('Content-type', 'text/css')
+                .header("Content-Disposition", `attachment; filename=export_signups_${date}.csv;`)
+        },
+        options: {
+            auth: 'admin'
+        }
+    });
+
+    server.route({
+        method: 'GET',
+        path: '/isAdmin',
+        handler: (req: Request, h: ResponseToolkit) => {
+            const user = req.auth.credentials.user as User;
+            return isAdmin(user);
         }
     });
 
