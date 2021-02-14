@@ -4,8 +4,9 @@ import * as admin from "firebase-admin";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import * as twilio from "twilio";
 import {NodeMailgun} from 'ts-mailgun';
+import {createHmac, randomBytes} from "crypto";
 import {admins} from "./admins";
-
+import * as Boom from "@hapi/boom";
 
 const SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -31,6 +32,8 @@ const mailGunApi = new NodeMailgun(mailGunApiKeys.apiKey, mailGunApiKeys.domain)
 mailGunApi.fromEmail = mailGunApiKeys.from;
 mailGunApi.fromTitle = mailGunApiKeys.fromTitle
 mailGunApi.init();
+
+const SALT = randomBytes(Math.ceil(13 / 2)).toString('hex').slice(0, 13);
 
 interface User {
     uid: string;
@@ -62,49 +65,41 @@ const initializeFirebase = () => {
     app.auth()
 }
 
+const generateHash = (str: string): string => {
+    let hash = createHmac('sha512', SALT);
+    hash.update(str);
+    return hash.digest('hex');
+}
+
+
 const sendVerificationCode = async (req: Request, response: ResponseToolkit) => {
-    const {phoneNumber, recaptchaToken} = (req.payload as any);
-    const identityToolkit = google.identitytoolkit({
-        auth: fs.readFileSync(GOOGLE_API_KEY_PATH).toString(),
-        version: 'v3',
-    });
+    const {phoneNumber} = (req.payload as any);
+    const verificationCode = String((Math.random() * 100000).toFixed(0)).padStart(6, "0");
+    const hashedVerificationCode = generateHash(`${phoneNumber}:${verificationCode}`);
 
-
-    const identityResponse = await identityToolkit.relyingparty.sendVerificationCode({
-        requestBody: {
-            phoneNumber: `+1${phoneNumber}`,
-            recaptchaToken
-        }
-    });
-
-    // save sessionInfo into db. You will need this to verify the SMS code
-    const sessionInfo = identityResponse.data.sessionInfo;
-    return {verificationToken: sessionInfo};
+    await twilioApi.messages.create({
+        body: `Your SSSBCSJ Signup Verification Code is ${verificationCode}`,
+        to: `+1${phoneNumber}`,
+        from: twilioApiKeys.from
+    })
+        .then((message) => {
+            console.log(`SMS was sent to ${message.to} from ${twilioApiKeys.from}. Message SID: ${message.sid}`);
+        });
+    return {verificationToken: hashedVerificationCode};
 }
 
 const verifySMSCode = async (req: Request, response: ResponseToolkit) => {
-    const {verificationCode, verificationToken} = (req.payload as any);
-    const identityToolkit = google.identitytoolkit({
-        auth: fs.readFileSync(GOOGLE_API_KEY_PATH).toString(),
-        version: 'v3',
-    });
+    const {verificationCode, verificationToken, phoneNumber} = (req.payload as any);
 
-    const verificationResponse = await identityToolkit.relyingparty.verifyPhoneNumber({
-        requestBody: {
-            code: verificationCode,
-            sessionInfo: verificationToken
-        }
-    });
-
-
-    const phoneUser = await admin.auth().verifyIdToken(verificationResponse.data.idToken);
-    await admin.auth().deleteUser(phoneUser.uid);
-
+    const verificationCodeHash = generateHash(`${phoneNumber}:${verificationCode}`);
+    if (verificationCodeHash !== verificationToken) {
+        throw Boom.badRequest("Invalid verification code or token passed");
+    }
     const user = req.auth.credentials.user as User;
     await admin
         .auth()
         .updateUser(user.uid, {
-            phoneNumber: verificationResponse.data.phoneNumber,
+            phoneNumber: `+1${phoneNumber}`,
         });
     return true;
 }
@@ -134,5 +129,13 @@ const isAdmin = (u: User) => {
     return admins.indexOf(u.email) !== -1;
 }
 
-
-export {authorize, initializeFirebase, sendVerificationCode, verifySMSCode, sendSMS, sendEMail, User, isAdmin};
+export {
+    authorize,
+    initializeFirebase,
+    sendVerificationCode,
+    verifySMSCode,
+    sendSMS,
+    sendEMail,
+    User,
+    isAdmin
+};

@@ -62,7 +62,7 @@ const PHONE_NUMBER_INDEX = 5;
 const EMAIL_INDEX = 6;
 const NOTES_INDEX = 7;
 
-async function getSignupSheets(getAllSheetsForExport: boolean) {
+async function getSummarizedSignupSheets(getAllSheetsForExport: boolean) {
     const spreadsheets = await google.drive({version: 'v3', auth: authorize()}).files.list({
         spaces: "drive",
         q: "mimeType='application/vnd.google-apps.spreadsheet'"
@@ -101,12 +101,20 @@ async function getSignupSheets(getAllSheetsForExport: boolean) {
     return parsedSheets;
 }
 
-const listSignupSheets = async (req: Request, response: ResponseToolkit) => {
-    const getAllSheetsForExport = false;
-    return await getSignupSheets(getAllSheetsForExport);
+const getUserSignups = async (user: User) => {
+    const summarizedSignupSheets = await getSummarizedSignupSheets(false);
+    const userSignups = new Array<SignupSheet>();
+    for (const summarizedSignupSheet of summarizedSignupSheets) {
+        const detailedSignupSheet = await getDetailedSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
+        if (!isEmpty(detailedSignupSheet) && !isEmpty(detailedSignupSheet.signees)) {
+            userSignups.push(detailedSignupSheet);
+        }
+    }
+    return userSignups;
 }
 
-async function getSignupSheet(spreadSheetId, sheetTitle, user: User): Promise<SignupSheet | null> {
+
+async function getDetailedSignupSheet(spreadSheetId, sheetTitle, user: User, listAllSignups = false): Promise<SignupSheet | null> {
     const gsheets = google.sheets({version: 'v4'});
     const spreadsheet = await gsheets.spreadsheets.values.get({
         spreadsheetId: spreadSheetId,
@@ -149,7 +157,7 @@ async function getSignupSheet(spreadSheetId, sheetTitle, user: User): Promise<Si
                     signupItems.push(signup);
                 }
             } else {
-                if (isAnAdmin || email === user.email) {
+                if ((listAllSignups && isAnAdmin) || email === user.email) {
                     const signee: Signee = {
                         ...signup,
                         signedUpOn: new Date(v[SIGNED_UP_ON_INDEX]),
@@ -259,4 +267,4 @@ const exportSignups = (req: Request, h: ResponseToolkit) => {
 };
 
 
-export {listSignupSheets, getSignupSheet, saveSignup, getSignupSheets, exportSignups};
+export {getDetailedSignupSheet, saveSignup, getSummarizedSignupSheets, exportSignups, getUserSignups};

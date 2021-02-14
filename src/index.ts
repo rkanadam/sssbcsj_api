@@ -1,7 +1,7 @@
 import {Lifecycle, Request, ResponseObject, ResponseToolkit, Server, ServerAuthSchemeObject} from "@hapi/hapi";
 import {getSSERegistrations, saveSSERegistrations} from "./sse";
 import {authorize, initializeFirebase, sendEMail, sendSMS, sendVerificationCode, User, verifySMSCode} from "./lib";
-import {getSignupSheet, getSignupSheets, saveSignup} from "./signups";
+import {getDetailedSignupSheet, getSummarizedSignupSheets, getUserSignups, saveSignup} from "./signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -22,6 +22,12 @@ const init = async () => {
                 origin: ['http://region7saicenters.org', 'https://region7saicenters.org', 'http://localhost:4200'],
                 additionalHeaders: ["bearer", "content-type"],
                 credentials: true
+            },
+            validate: {
+                failAction: async (request, h, err) => {
+                    console.error('ValidationError:', err.message, err.stack);
+                    throw err;
+                }
             }
         }
     });
@@ -103,9 +109,24 @@ const init = async () => {
     });
     server.route({
         method: 'GET',
-        path: '/signups',
+        path: '/signups:summarised',
         handler: (req: Request) => {
-            return getSignupSheets(false);
+            return getSummarizedSignupSheets(false);
+        },
+        options: {
+            validate: {
+                query: Joi.object({
+                    tag: Joi.string().min(1).max(255).optional().default("")
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+    server.route({
+        method: 'GET',
+        path: '/signups:my',
+        handler: (req: Request) => {
+            const user = req.auth.credentials.user as User;
+            return getUserSignups(user);
         },
         options: {
             validate: {
@@ -138,8 +159,8 @@ const init = async () => {
         options: {
             validate: {
                 payload: Joi.object({
-                    phoneNumber: Joi.string().min(10).max(10).length(10).required(),
-                    recaptchaToken: Joi.string().min(10).max(255).required()
+                    phoneNumber: Joi.string().length(10).required(),
+                    recaptchaToken: Joi.string().min(10).max(4096).required()
                 }).options({stripUnknown: true})
             }
         }
@@ -151,6 +172,7 @@ const init = async () => {
         options: {
             validate: {
                 payload: Joi.object({
+                    phoneNumber: Joi.string().length(10).required(),
                     verificationCode: Joi.string().min(1).max(10).required(),
                     verificationToken: Joi.string().min(10).max(255).required()
                 }).options({stripUnknown: true})
@@ -197,15 +219,15 @@ const init = async () => {
 
     server.route({
         method: 'GET',
-        path: '/signupSheet',
+        path: '/signups:detailed/{spreadSheetId}/{sheetTitle}',
         handler: (req: Request) => {
-            const {spreadSheetId, sheetTitle} = req.query as any;
+            const {spreadSheetId, sheetTitle} = req.params as any;
             const user = req.auth.credentials.user as User;
-            return getSignupSheet(spreadSheetId, sheetTitle, user);
+            return getDetailedSignupSheet(spreadSheetId, sheetTitle, user);
         },
         options: {
             validate: {
-                query: Joi.object({
+                params: Joi.object({
                     spreadSheetId: Joi.string().min(5).max(1024).required(),
                     sheetTitle: Joi.string().min(5).max(255).required()
                 }).options({stripUnknown: true})
