@@ -10,7 +10,13 @@ import {
     User,
     verifySMSCode
 } from "./lib";
-import {exportSignups, getDetailedSignupSheet, getSummarizedSignupSheets, getUserSignups, saveSignup} from "./signups";
+import {
+    exportServiceSignups,
+    getDetailedServiceSignupSheet,
+    getSummarizedServiceSignupSheets,
+    getUserServiceSignups,
+    saveServiceSignup
+} from "./service-signups";
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -21,6 +27,11 @@ import * as blipp from "blipp";
 import * as Joi from "joi";
 import {admins} from "./admins";
 import * as dateFormat from "dateformat";
+import {
+    getDetailedDevotionSignupSheet,
+    getSummarizedDevotionSignupSheets,
+    saveDevotionSignup
+} from "./devotion-signups";
 import ReturnValue = Lifecycle.ReturnValue;
 
 const init = async () => {
@@ -117,26 +128,30 @@ const init = async () => {
         },
         handler: saveSSERegistrations
     });
+
     server.route({
         method: 'GET',
-        path: '/signups:summarised',
+        path: '/devotion/signups:summarised',
         handler: (req: Request) => {
-            return getSummarizedSignupSheets(false);
-        },
-        options: {
-            validate: {
-                query: Joi.object({
-                    tag: Joi.string().min(1).max(255).optional().default("")
-                }).options({stripUnknown: true})
-            }
+            return getSummarizedDevotionSignupSheets(false);
         }
     });
+
+
+    server.route({
+        method: 'GET',
+        path: '/service/signups:summarised',
+        handler: (req: Request) => {
+            return getSummarizedServiceSignupSheets(false);
+        }
+    });
+
     server.route({
         method: 'GET',
         path: '/signups:my',
         handler: (req: Request) => {
             const user = req.auth.credentials.user as User;
-            return getUserSignups(user);
+            return getUserServiceSignups(user);
         },
         options: {
             validate: {
@@ -148,8 +163,8 @@ const init = async () => {
     });
     server.route({
         method: 'POST',
-        path: '/signups',
-        handler: saveSignup,
+        path: '/service/signups',
+        handler: saveServiceSignup,
         options: {
             validate: {
                 payload: Joi.object({
@@ -161,6 +176,29 @@ const init = async () => {
             }
         }
     });
+
+    server.route({
+        method: 'POST',
+        path: '/devotion/signups',
+        handler: (req: Request) => {
+            const request = req.payload as any;
+            const user = req.auth.credentials.user as User;
+            return saveDevotionSignup(request, user);
+        },
+        options: {
+            validate: {
+                payload: Joi.object({
+                    spreadSheetId: Joi.string().min(1).max(255).required(),
+                    sheetTitle: Joi.string().min(1).max(255).required(),
+                    row: Joi.number().integer().min(0).required(),
+                    bhajanOrTFD: Joi.string().optional().default(""),
+                    scale: Joi.string().optional().default(""),
+                    notes: Joi.string().optional().default("")
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+
 
     server.route({
         method: 'POST',
@@ -229,10 +267,10 @@ const init = async () => {
 
     server.route({
         method: 'GET',
-        path: '/export',
+        path: '/service/export',
         handler: async (req: Request, h: ResponseToolkit) => {
             const user = req.auth.credentials.user as User;
-            const stream = await exportSignups(user);
+            const stream = await exportServiceSignups(user);
             const date = dateFormat(new Date(), "mmddyyyy_HHMMss")
             return h.response(stream)
                 .type('text/css')
@@ -255,11 +293,29 @@ const init = async () => {
 
     server.route({
         method: 'GET',
-        path: '/signups:detailed/{spreadSheetId}/{sheetTitle}',
+        path: '/service/signups:detailed/{spreadSheetId}/{sheetTitle}',
         handler: (req: Request) => {
             const {spreadSheetId, sheetTitle} = req.params as any;
             const user = req.auth.credentials.user as User;
-            return getDetailedSignupSheet(spreadSheetId, sheetTitle, user);
+            return getDetailedServiceSignupSheet(spreadSheetId, sheetTitle, user);
+        },
+        options: {
+            validate: {
+                params: Joi.object({
+                    spreadSheetId: Joi.string().min(5).max(1024).required(),
+                    sheetTitle: Joi.string().min(5).max(255).required()
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+
+    server.route({
+        method: 'GET',
+        path: '/devotion/signups:detailed/{spreadSheetId}/{sheetTitle}',
+        handler: (req: Request) => {
+            const {spreadSheetId, sheetTitle} = req.params as any;
+            const user = req.auth.credentials.user as User;
+            return getDetailedDevotionSignupSheet(spreadSheetId, sheetTitle, user);
         },
         options: {
             validate: {

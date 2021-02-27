@@ -64,7 +64,7 @@ const PHONE_NUMBER_INDEX = 5;
 const EMAIL_INDEX = 6;
 const NOTES_INDEX = 7;
 
-async function getSummarizedSignupSheets(getAllSheetsForExport: boolean) {
+async function getSummarizedServiceSignupSheets(getAllSheetsForExport: boolean) {
     const spreadsheets = await google.drive({version: 'v3', auth: authorize()}).files.list({
         spaces: "drive",
         q: "mimeType='application/vnd.google-apps.spreadsheet'"
@@ -103,11 +103,11 @@ async function getSummarizedSignupSheets(getAllSheetsForExport: boolean) {
     return parsedSheets;
 }
 
-const getUserSignups = async (user: User) => {
-    const summarizedSignupSheets = await getSummarizedSignupSheets(false);
+const getUserServiceSignups = async (user: User) => {
+    const summarizedSignupSheets = await getSummarizedServiceSignupSheets(false);
     const userSignups = new Array<SignupSheet>();
     for (const summarizedSignupSheet of summarizedSignupSheets) {
-        const detailedSignupSheet = await getDetailedSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
+        const detailedSignupSheet = await getDetailedServiceSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
         if (!isEmpty(detailedSignupSheet) && !isEmpty(detailedSignupSheet.signees)) {
             userSignups.push(detailedSignupSheet);
         }
@@ -115,7 +115,7 @@ const getUserSignups = async (user: User) => {
     return userSignups;
 }
 
-async function getDetailedSignupSheet(spreadSheetId, sheetTitle, user: User, listAllSignups = false): Promise<SignupSheet | null> {
+async function getDetailedServiceSignupSheet(spreadSheetId, sheetTitle, user: User, listAllSignups = false): Promise<SignupSheet | null> {
     const gsheets = google.sheets({version: 'v4'});
     const spreadsheet = await gsheets.spreadsheets.values.get({
         spreadsheetId: spreadSheetId,
@@ -192,7 +192,7 @@ async function getDetailedSignupSheet(spreadSheetId, sheetTitle, user: User, lis
     return null;
 }
 
-const saveSignup = async (req: Request, h: ResponseToolkit) => {
+const saveServiceSignup = async (req: Request, h: ResponseToolkit) => {
     const signupToSave: Signup = (req.payload as Signup);
     const user = (req.auth.credentials.user as User)
     const gsheets = await google.sheets({version: "v4"});
@@ -255,8 +255,8 @@ const listSignees = async (req: Request, h: ResponseToolkit) => {
     return [];
 }
 
-const exportSignups = async (user: User) => {
-    const summarizedSignupSheets = await getSummarizedSignupSheets(true);
+const exportServiceSignups = async (user: User) => {
+    const summarizedSignupSheets = await getSummarizedServiceSignupSheets(true);
     temp.track();
     const tempStream = temp.createWriteStream();
     const csvStream = stringify({
@@ -278,7 +278,7 @@ const exportSignups = async (user: User) => {
     });
     csvStream.pipe(tempStream)
     for (const summarizedSignupSheet of summarizedSignupSheets) {
-        const detailedSignupSheet = await getDetailedSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
+        const detailedSignupSheet = await getDetailedServiceSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
         if (!isEmpty(detailedSignupSheet) && !isEmpty(detailedSignupSheet.signees)) {
             for (const signee of detailedSignupSheet.signees) {
                 csvStream.write([
@@ -302,4 +302,10 @@ const exportSignups = async (user: User) => {
 };
 
 
-export {getDetailedSignupSheet, saveSignup, getSummarizedSignupSheets, exportSignups, getUserSignups};
+export {
+    getDetailedServiceSignupSheet,
+    saveServiceSignup,
+    getSummarizedServiceSignupSheets,
+    exportServiceSignups,
+    getUserServiceSignups
+};
