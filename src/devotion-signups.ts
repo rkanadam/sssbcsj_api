@@ -136,7 +136,7 @@ export async function getDetailedDevotionSignupSheet(spreadSheetId, sheetTitle, 
         if (isEmpty(name) && isEmpty(email) && isEmpty(phoneNumber)) {
             signups.push(signup);
         } else {
-            if ((listAllSignups && isAnAdmin) || email === user.email) {
+            if ((listAllSignups && isAnAdmin) || isAnAdmin || email === user.email) {
                 signees.push(signup);
             }
         }
@@ -149,7 +149,7 @@ export async function getDetailedDevotionSignupSheet(spreadSheetId, sheetTitle, 
         spreadsheetId: spreadSheetId,
         sheetTitle: sheetTitle,
         signups,
-        signees: isAnAdmin ? signees : null,
+        signees,
     }
     return bhajanSignupSheet;
 }
@@ -183,3 +183,16 @@ export async function saveDevotionSignup(request: SignupForBhajanRequest, user: 
     }
     return true;
 }
+
+export async function getUserDevotionSignups(user: User) {
+    const summarizedSignupSheets = await getSummarizedDevotionSignupSheets(false);
+    const userSignups = new Array<BhajanSignupSheet>();
+    for (const summarizedSignupSheet of summarizedSignupSheets) {
+        const detailedSignupSheet = await getDetailedDevotionSignupSheet(summarizedSignupSheet.spreadsheetId, summarizedSignupSheet.sheetTitle, user, false)
+        if (!isEmpty(detailedSignupSheet) && !isEmpty(detailedSignupSheet.signees)) {
+            userSignups.push(detailedSignupSheet);
+        }
+    }
+    return userSignups;
+}
+

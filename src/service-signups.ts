@@ -158,7 +158,7 @@ async function getDetailedServiceSignupSheet(spreadSheetId, sheetTitle, user: Us
                     signupItems.push(signup);
                 }
             } else {
-                if ((listAllSignups && isAnAdmin) || email === user.email) {
+                if ((listAllSignups && isAnAdmin) || isAnAdmin || email === user.email) {
                     const signee: Signee = {
                         ...signup,
                         signedUpOn: new Date(v[SIGNED_UP_ON_INDEX]),
@@ -184,7 +184,7 @@ async function getDetailedServiceSignupSheet(spreadSheetId, sheetTitle, user: Us
             spreadsheetId: spreadSheetId,
             sheetTitle: sheetTitle,
             signupItems: signupItems,
-            signees: isAnAdmin ? signees : null,
+            signees,
             tags
         }
         return ss;

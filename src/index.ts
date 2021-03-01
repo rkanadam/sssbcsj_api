@@ -30,6 +30,7 @@ import * as dateFormat from "dateformat";
 import {
     getDetailedDevotionSignupSheet,
     getSummarizedDevotionSignupSheets,
+    getUserDevotionSignups,
     saveDevotionSignup
 } from "./devotion-signups";
 import ReturnValue = Lifecycle.ReturnValue;
@@ -149,9 +150,14 @@ const init = async () => {
     server.route({
         method: 'GET',
         path: '/signups:my',
-        handler: (req: Request) => {
+        handler: async (req: Request) => {
             const user = req.auth.credentials.user as User;
-            return getUserServiceSignups(user);
+            const serviceSignups = await getUserServiceSignups(user);
+            const devotionSignups = await getUserDevotionSignups(user);
+            return {
+                service: serviceSignups,
+                devotion: devotionSignups
+            }
         },
         options: {
             validate: {
@@ -191,9 +197,9 @@ const init = async () => {
                     spreadSheetId: Joi.string().min(1).max(255).required(),
                     sheetTitle: Joi.string().min(1).max(255).required(),
                     row: Joi.number().integer().min(0).required(),
-                    bhajanOrTFD: Joi.string().optional().default(""),
-                    scale: Joi.string().optional().default(""),
-                    notes: Joi.string().optional().default("")
+                    bhajanOrTFD: Joi.string().optional().default("").allow(null),
+                    scale: Joi.string().optional().default("").allow(null),
+                    notes: Joi.string().optional().default("").allow(null)
                 }).options({stripUnknown: true})
             }
         }
