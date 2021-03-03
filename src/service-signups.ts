@@ -71,9 +71,11 @@ async function getSummarizedServiceSignupSheets(getAllSheetsForExport: boolean) 
     });
     const signupSpreadsheets = (spreadsheets.data.files || [])
         .filter(f => f.name.toLowerCase().trim().replace(/[^0-9a-z]/, "").indexOf("signup") !== -1);
-    const tmp = new Date();
-    const now = new Date(`${tmp.getFullYear()}-${tmp.getMonth() > 9 ? "" : "0"}${tmp.getMonth() + 1}-${tmp.getDate()}`);
-    //Tell me about time zones and problems
+    const now = new Date();
+    now.setMilliseconds(0);
+    now.setSeconds(0);
+    now.setMinutes(0);
+    now.setHours(0);
 
     const parsedSheets = new Array<ParsedSheet>();
     for (const signupSpreadsheet of signupSpreadsheets) {
@@ -84,7 +86,7 @@ async function getSummarizedServiceSignupSheets(getAllSheetsForExport: boolean) 
         const sheetsFromThisSpreadsheet = s.data.sheets.map(s1 => {
             const dateMatch = /\d{4}-\d{2}-\d{2}/.exec(s1.properties.title);
             if (dateMatch) {
-                const date = new Date(dateMatch[0]);
+                const date = new Date(`${dateMatch[0]} 00:00:00.00`);
                 if (getAllSheetsForExport || date.getTime() >= now.getTime()) {
                     const ps: ParsedSheet =
                         {
@@ -100,6 +102,7 @@ async function getSummarizedServiceSignupSheets(getAllSheetsForExport: boolean) 
         }).filter(s1 => s1 !== null);
         parsedSheets.splice(parsedSheets.length, 0, ...sheetsFromThisSpreadsheet);
     }
+    parsedSheets.sort((p1, p2) => p1.date.getTime() - p2.date.getTime());
     return parsedSheets;
 }
 
