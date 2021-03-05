@@ -1,6 +1,6 @@
 import {google} from "googleapis";
 import {Request, ResponseToolkit} from "@hapi/hapi";
-import {authorize, isAdmin, User} from "./lib";
+import {authorize, isAdmin, sendTemplateEMail, User} from "./lib";
 import {isEmpty} from "lodash";
 import * as dateFormat from "dateformat";
 import * as temp from "temp";
@@ -216,7 +216,7 @@ const saveServiceSignup = async (req: Request, h: ResponseToolkit) => {
             newSignupRow[PHONE_NUMBER_INDEX] = user.phoneNumber;
             await gsheets.spreadsheets.values.append({
                 spreadsheetId: signupToSave.spreadSheetId,
-                range: `${signupToSave.sheetTitle}`,
+                range: signupToSave.sheetTitle,
                 requestBody: {
                     majorDimension: "ROWS",
                     values: [newSignupRow]
@@ -225,14 +225,50 @@ const saveServiceSignup = async (req: Request, h: ResponseToolkit) => {
             })
 
             signupRowInSheet[ITEM_COUNT_INDEX] = itemCount - signupToSave.itemCount;
-            await gsheets.spreadsheets.values.update({
-                spreadsheetId: signupToSave.spreadSheetId,
-                range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`,
-                requestBody: {
-                    majorDimension: "ROWS",
-                    values: [signupRowInSheet]
-                },
-                valueInputOption: "RAW"
+            if (signupRowInSheet[ITEM_COUNT_INDEX] <= 0) {
+                const gSheet = await gsheets.spreadsheets.get({
+                    spreadsheetId: signupToSave.spreadSheetId
+                });
+                const sheet = gSheet.data.sheets.find(s => s.properties.title === signupToSave.sheetTitle);
+                await gsheets.spreadsheets.batchUpdate({
+                    spreadsheetId: signupToSave.spreadSheetId,
+                    requestBody: {
+                        requests: [
+                            {
+                                deleteDimension: {
+                                    range: {
+                                        "sheetId": sheet.properties.sheetId,
+                                        "dimension": "ROWS",
+                                        "startIndex": signupToSave.itemIndex -1,
+                                        "endIndex": signupToSave.itemIndex
+                                    }
+                                },
+
+                            }
+                        ]
+                    }
+                })
+            } else {
+                await gsheets.spreadsheets.values.update({
+                    spreadsheetId: signupToSave.spreadSheetId,
+                    range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`,
+                    requestBody: {
+                        majorDimension: "ROWS",
+                        values: [signupRowInSheet]
+                    },
+                    valueInputOption: "RAW"
+                })
+            }
+            const detailedSheet = await getDetailedServiceSignupSheet(signupToSave.spreadSheetId, signupToSave.sheetTitle, user, false);
+            await sendTemplateEMail(user.email, 'ServiceSignupConfirmation', {
+                name: user.name,
+                service: detailedSheet.title,
+                description: detailedSheet.description,
+                where: detailedSheet.location,
+                when: detailedSheet.date,
+                item: signupRowInSheet[ITEM_INDEX],
+                itemCount: signupToSave.itemCount,
+                notes: signupRowInSheet[NOTES_INDEX]
             })
         }
     }
@@ -303,7 +339,6 @@ const exportServiceSignups = async (user: User) => {
     }
     return createReadStream(tempStream.path.toString())
 };
-
 
 export {
     getDetailedServiceSignupSheet,

@@ -7,6 +7,8 @@ import {NodeMailgun} from 'ts-mailgun';
 import {createHmac, randomBytes} from "crypto";
 import {admins} from "./admins";
 import * as Boom from "@hapi/boom";
+import {MailgunTemplate} from "ts-mailgun/dist/mailgun-template";
+import * as path from 'path';
 
 const SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -32,6 +34,16 @@ const mailGunApi = new NodeMailgun(mailGunApiKeys.apiKey, mailGunApiKeys.domain)
 mailGunApi.fromEmail = mailGunApiKeys.from;
 mailGunApi.fromTitle = mailGunApiKeys.fromTitle
 mailGunApi.init();
+
+const getTemplate = (templateName: string, subject: string): MailgunTemplate => {
+    const mailgunTemplate = new MailgunTemplate()
+    mailgunTemplate.body = fs.readFileSync(
+        path.join(__dirname, `../templates/${templateName}.html`),
+        {encoding: "utf8"})
+    mailgunTemplate.subject = subject;
+    return mailgunTemplate
+}
+mailGunApi.templates['ServiceSignupConfirmation'] = getTemplate('ServiceSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up!");
 
 const SALT = randomBytes(Math.ceil(13 / 2)).toString('hex').slice(0, 13);
 
@@ -125,6 +137,11 @@ const sendEMail = async (messages: Array<{ to: string, subject: string, message:
     return true;
 }
 
+const sendTemplateEMail = async (to: string, template: string, params: any) => {
+    return mailGunApi.sendFromTemplate(to, mailGunApi.templates[template], params)
+}
+
+
 const isAdmin = (u: User) => {
     return admins.indexOf(u.email) !== -1;
 }
@@ -136,6 +153,7 @@ export {
     verifySMSCode,
     sendSMS,
     sendEMail,
+    sendTemplateEMail,
     User,
     isAdmin
 };
