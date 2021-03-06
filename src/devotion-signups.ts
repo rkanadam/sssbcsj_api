@@ -1,5 +1,5 @@
 import {google} from "googleapis";
-import {authorize, isAdmin, User} from "./lib";
+import {authorize, isAdmin, sendTemplateEMail, User} from "./lib";
 import {isEmpty} from "lodash";
 import * as dateFormat from "dateformat";
 
@@ -181,6 +181,18 @@ export async function saveDevotionSignup(request: SignupForBhajanRequest, user: 
             valueInputOption: "RAW"
         })
     }
+
+    const detailedSheet = await getDetailedDevotionSignupSheet(request.spreadSheetId, request.sheetTitle, user, false);
+    await sendTemplateEMail(user.email, 'DevotionSignupConfirmation', {
+        name: user.name,
+        description: detailedSheet.description,
+        where: detailedSheet.location,
+        when: detailedSheet.date,
+        bhajanOrTFD: request.bhajanOrTFD,
+        scale: request.scale,
+        notes: request.notes
+    })
+
     return true;
 }
 

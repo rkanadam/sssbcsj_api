@@ -239,7 +239,7 @@ const saveServiceSignup = async (req: Request, h: ResponseToolkit) => {
                                     range: {
                                         "sheetId": sheet.properties.sheetId,
                                         "dimension": "ROWS",
-                                        "startIndex": signupToSave.itemIndex -1,
+                                        "startIndex": signupToSave.itemIndex - 1,
                                         "endIndex": signupToSave.itemIndex
                                     }
                                 },

@@ -44,6 +44,7 @@ const getTemplate = (templateName: string, subject: string): MailgunTemplate => 
     return mailgunTemplate
 }
 mailGunApi.templates['ServiceSignupConfirmation'] = getTemplate('ServiceSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up!");
+mailGunApi.templates['DevotionSignupConfirmation'] = getTemplate('DevotionSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up!");
 
 const SALT = randomBytes(Math.ceil(13 / 2)).toString('hex').slice(0, 13);
 
@@ -137,7 +138,7 @@ const sendEMail = async (messages: Array<{ to: string, subject: string, message:
     return true;
 }
 
-const sendTemplateEMail = async (to: string, template: string, params: any) => {
+const sendTemplateEMail = async (to: string, template: string, params: any, cc = "") => {
     return mailGunApi.sendFromTemplate(to, mailGunApi.templates[template], params)
 }
 
