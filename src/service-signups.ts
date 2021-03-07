@@ -38,8 +38,10 @@ interface SignupSheet {
 interface Signup {
     spreadSheetId: string;
     sheetTitle: string;
-    itemIndex: number;
-    itemCount: number;
+    items: Array<{
+        itemIndex: number;
+        itemCount: number;
+    }>;
 }
 
 interface Signee extends SignupItem {
@@ -195,83 +197,88 @@ async function getDetailedServiceSignupSheet(spreadSheetId, sheetTitle, user: Us
     return null;
 }
 
-const saveServiceSignup = async (req: Request, h: ResponseToolkit) => {
-    const signupToSave: Signup = (req.payload as Signup);
-    const user = (req.auth.credentials.user as User)
+const saveServiceSignup = async (signup: Signup, user: User) => {
     const gsheets = await google.sheets({version: "v4"});
-    const response = await gsheets.spreadsheets.values.get({
-        spreadsheetId: signupToSave.spreadSheetId,
-        range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`
-    });
-    const values = response.data.values;
-    if (!isEmpty(values)) {
-        const signupRowInSheet = values[0];
-        const itemCount = parseInt((signupRowInSheet[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
-        if (itemCount >= signupToSave.itemCount) {
-            const newSignupRow = [...signupRowInSheet];
-            newSignupRow[SIGNED_UP_ON_INDEX] = dateFormat(new Date(), "ddd, mmm/dd/yyyy hh:MM:ss.l TT Z");
-            newSignupRow[ITEM_COUNT_INDEX] = signupToSave.itemCount;
-            newSignupRow[NAME_INDEX] = user.name;
-            newSignupRow[EMAIL_INDEX] = user.email;
-            newSignupRow[PHONE_NUMBER_INDEX] = user.phoneNumber;
-            await gsheets.spreadsheets.values.append({
-                spreadsheetId: signupToSave.spreadSheetId,
-                range: signupToSave.sheetTitle,
-                requestBody: {
-                    majorDimension: "ROWS",
-                    values: [newSignupRow]
-                },
-                valueInputOption: "RAW"
-            })
-
-            signupRowInSheet[ITEM_COUNT_INDEX] = itemCount - signupToSave.itemCount;
-            if (signupRowInSheet[ITEM_COUNT_INDEX] <= 0) {
-                const gSheet = await gsheets.spreadsheets.get({
-                    spreadsheetId: signupToSave.spreadSheetId
-                });
-                const sheet = gSheet.data.sheets.find(s => s.properties.title === signupToSave.sheetTitle);
-                await gsheets.spreadsheets.batchUpdate({
-                    spreadsheetId: signupToSave.spreadSheetId,
-                    requestBody: {
-                        requests: [
-                            {
-                                deleteDimension: {
-                                    range: {
-                                        "sheetId": sheet.properties.sheetId,
-                                        "dimension": "ROWS",
-                                        "startIndex": signupToSave.itemIndex - 1,
-                                        "endIndex": signupToSave.itemIndex
-                                    }
-                                },
-
-                            }
-                        ]
-                    }
-                })
-            } else {
-                await gsheets.spreadsheets.values.update({
-                    spreadsheetId: signupToSave.spreadSheetId,
-                    range: `'${signupToSave.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`,
+    const savedSignups = [];
+    for (const signupToSave of signup.items) {
+        const response = await gsheets.spreadsheets.values.get({
+            spreadsheetId: signup.spreadSheetId,
+            range: `'${signup.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`
+        });
+        const values = response.data.values;
+        if (!isEmpty(values)) {
+            const signupRowInSheet = values[0];
+            const itemCount = parseInt((signupRowInSheet[ITEM_COUNT_INDEX] || "").toString().trim(), 10);
+            if (itemCount >= signupToSave.itemCount) {
+                const newSignupRow = [...signupRowInSheet];
+                newSignupRow[SIGNED_UP_ON_INDEX] = dateFormat(new Date(), "ddd, mmm/dd/yyyy hh:MM:ss.l TT Z");
+                newSignupRow[ITEM_COUNT_INDEX] = signupToSave.itemCount;
+                newSignupRow[NAME_INDEX] = user.name;
+                newSignupRow[EMAIL_INDEX] = user.email;
+                newSignupRow[PHONE_NUMBER_INDEX] = user.phoneNumber;
+                await gsheets.spreadsheets.values.append({
+                    spreadsheetId: signup.spreadSheetId,
+                    range: signup.sheetTitle,
                     requestBody: {
                         majorDimension: "ROWS",
-                        values: [signupRowInSheet]
+                        values: [newSignupRow]
                     },
                     valueInputOption: "RAW"
-                })
+                });
+                savedSignups.push(newSignupRow);
+
+                signupRowInSheet[ITEM_COUNT_INDEX] = itemCount - signupToSave.itemCount;
+                if (signupRowInSheet[ITEM_COUNT_INDEX] <= 0) {
+                    const gSheet = await gsheets.spreadsheets.get({
+                        spreadsheetId: signup.spreadSheetId
+                    });
+                    const sheet = gSheet.data.sheets.find(s => s.properties.title === signup.sheetTitle);
+                    await gsheets.spreadsheets.batchUpdate({
+                        spreadsheetId: signup.spreadSheetId,
+                        requestBody: {
+                            requests: [
+                                {
+                                    deleteDimension: {
+                                        range: {
+                                            "sheetId": sheet.properties.sheetId,
+                                            "dimension": "ROWS",
+                                            "startIndex": signupToSave.itemIndex - 1,
+                                            "endIndex": signupToSave.itemIndex
+                                        }
+                                    },
+
+                                }
+                            ]
+                        }
+                    })
+                } else {
+                    await gsheets.spreadsheets.values.update({
+                        spreadsheetId: signup.spreadSheetId,
+                        range: `'${signup.sheetTitle}'!${signupToSave.itemIndex}:${signupToSave.itemIndex}`,
+                        requestBody: {
+                            majorDimension: "ROWS",
+                            values: [signupRowInSheet]
+                        },
+                        valueInputOption: "RAW"
+                    })
+                }
             }
-            const detailedSheet = await getDetailedServiceSignupSheet(signupToSave.spreadSheetId, signupToSave.sheetTitle, user, false);
-            await sendTemplateEMail(user.email, 'ServiceSignupConfirmation', {
-                name: user.name,
-                service: detailedSheet.title,
-                description: detailedSheet.description,
-                where: detailedSheet.location,
-                when: detailedSheet.date,
-                item: signupRowInSheet[ITEM_INDEX],
-                itemCount: signupToSave.itemCount,
-                notes: signupRowInSheet[NOTES_INDEX]
-            })
         }
     }
+    const detailedSheet = await getDetailedServiceSignupSheet(signup.spreadSheetId, signup.sheetTitle, user, false);
+    await sendTemplateEMail(user.email, 'ServiceSignupConfirmation', {
+        name: user.name,
+        service: detailedSheet.title,
+        description: detailedSheet.description,
+        where: detailedSheet.location,
+        when: detailedSheet.date,
+        items: savedSignups.map((s, index) => ({
+            index: index + 1,
+            item: s[ITEM_INDEX],
+            itemCount: s[ITEM_COUNT_INDEX],
+            notes: s[NOTES_INDEX]
+        }))
+    });
     return true;
 }
 

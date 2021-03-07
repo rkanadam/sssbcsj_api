@@ -173,8 +173,9 @@
                                                 <td>When</td>
                                                 <td>{{when}}</td>
                                             </tr>
+                                            {{#each items}}
                                             <tr>
-                                                <td>Item</td>
+                                                <td>Item #{{index}}</td>
                                                 <td>{{item}}</td>
                                             </tr>
                                             <tr>
@@ -185,6 +186,7 @@
                                                 <td>Notes</td>
                                                 <td>{{notes}}</td>
                                             </tr>
+                                            {{/each}}
                                         </table>
                                     </td>
                                 </tr>

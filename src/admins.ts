@@ -1,6 +1,6 @@
 const admins = [
     "akella.sastry@gmail.com",
-    "raghuram.kanadam@gmail.com",
+    "raghuram.kanadam@gmail.com1",
     "rekhasaladi74@gmail.com",
     "stbhutia@yahoo.com",
     "sunithathummuri@gmail.com"

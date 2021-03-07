@@ -170,14 +170,22 @@ const init = async () => {
     server.route({
         method: 'POST',
         path: '/service/signups',
-        handler: saveServiceSignup,
+        handler: async (req: Request) => {
+            const signup = req.payload as any;
+            const user = req.auth.credentials.user as User;
+            return saveServiceSignup(signup, user);
+        },
         options: {
             validate: {
                 payload: Joi.object({
                     spreadSheetId: Joi.string().min(1).max(255).required(),
                     sheetTitle: Joi.string().min(1).max(255).required(),
-                    itemIndex: Joi.number().integer().min(0).required(),
-                    itemCount: Joi.number().integer().min(0).required()
+                    items: Joi.array().min(1).items(
+                        Joi.object({
+                            itemIndex: Joi.number().integer().min(0).required(),
+                            itemCount: Joi.number().integer().min(0).required()
+                        })
+                    )
                 }).options({stripUnknown: true})
             }
         }
