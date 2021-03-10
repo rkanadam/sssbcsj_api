@@ -271,7 +271,7 @@ const init = async () => {
             auth: 'admin',
             validate: {
                 payload: Joi.array().items(Joi.object({
-                    message: Joi.string().min(10).max(10240).required(),
+                    message: Joi.string().min(10).max(102400).required(),
                     subject: Joi.string().min(5).max(512).required(),
                     to: Joi.string().min(5).max(255).required()
                 })).options({stripUnknown: true})
