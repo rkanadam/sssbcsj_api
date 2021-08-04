@@ -2,9 +2,14 @@ import {isEmpty} from "lodash";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import {google} from "googleapis";
 
-const SHEET_NAME = '2020 Registration';
+const SHEET_NAME = '2021 Registration';
 const properties = [
-    'ignore',
+    'year',
+    'firstnameofchild',
+    'lastnameofchild',
+    'schoolgradeofchild',
+    'emailofchild',
+    'phonenumberofchild',
     'fathersfirstname',
     'fatherslastname',
     'fathersemail',
@@ -13,17 +18,15 @@ const properties = [
     'motherslastname',
     'mothersemail',
     'mothersphone',
-    'firstnameofchild',
-    'lastnameofchild',
-    'ssegroupofchild',
-    'schoolgradeofchild',
-    'allergiesofchild',
-    'comments',
-    'centercommunication',
     'expectations',
     'interesting',
     'notinteresting',
     'change',
+    'centercommunication',
+    'bhajans',
+    'covid19comments',
+    'inperson',
+    'instrument'
 ];
 
 
@@ -58,8 +61,9 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
         const sheets = google.sheets({version: 'v4'});
         for (const registration of registrations) {
             const range = registration[0] || "";
+            registration[0] = "2021";
             if (isEmpty(range)) {
-                const response = await sheets.spreadsheets.values.append({
+                await sheets.spreadsheets.values.append({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
                     range: `${SHEET_NAME}!A:Z`,
                     requestBody: {
@@ -69,7 +73,7 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
                     valueInputOption: "RAW"
                 });
             } else {
-                const response = await sheets.spreadsheets.values.update({
+                await sheets.spreadsheets.values.update({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
                     range: `${SHEET_NAME}!${range}:${range}`,
                     requestBody: {
