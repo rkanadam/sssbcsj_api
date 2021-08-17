@@ -26,7 +26,8 @@ const properties = [
     'bhajans',
     'covid19comments',
     'inperson',
-    'instrument'
+    'instrument',
+    'service'
 ];
 
 
