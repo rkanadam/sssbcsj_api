@@ -7,7 +7,7 @@ interface ParsedSheet {
     spreadsheetId: string;
     spreadSheetTitle: string;
     sheetTitle: string;
-    date: Date;
+    date: string;
 }
 
 interface SignupForBhajanRequest {
@@ -80,7 +80,7 @@ export async function getSummarizedDevotionSignupSheets(getAllSheetsForExport: b
                 if (getAllSheetsForExport || date.getTime() >= now.getTime()) {
                     const ps: ParsedSheet =
                         {
-                            date,
+                            date: date.toISOString(),
                             spreadSheetTitle: s.data.properties.title,
                             spreadsheetId: signupSpreadsheet.id,
                             sheetTitle: s1.properties.title
