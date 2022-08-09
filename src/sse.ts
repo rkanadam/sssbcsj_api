@@ -40,7 +40,7 @@ async function getSSERegistrations(req: Request, response: ResponseToolkit) {
             range: `${SHEET_NAME}!A:Z`
         });
         if (values && values.data) {
-            const propertiesToClear = ["fathersemail", "fathersphone", "mothersemail", "mothersphone"];
+            const propertiesToClear = ["fathersemail", "fathersphone", "mothersemail", "mothersphone", "emailofchild", "phonenumberofchild"];
             const matchedCells = values.data.values
                 .map((v, index) => {
                     v[0] = `${index + 1}`;
