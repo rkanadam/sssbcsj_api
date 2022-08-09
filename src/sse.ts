@@ -2,7 +2,7 @@ import {isEmpty} from "lodash";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import {google} from "googleapis";
 
-const SHEET_NAME = '2021 Registration';
+const SHEET_NAME = '2022 Registration';
 const properties = [
     'year',
     'firstnameofchild',
