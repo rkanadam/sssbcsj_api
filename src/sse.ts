@@ -62,7 +62,7 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
         const sheets = google.sheets({version: 'v4'});
         for (const registration of registrations) {
             const range = registration[0] || "";
-            registration[0] = "2021";
+            registration[0] = "2022";
             if (isEmpty(range)) {
                 await sheets.spreadsheets.values.append({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
