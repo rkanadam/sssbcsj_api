@@ -6,7 +6,8 @@
   "scripts": {
     "debug": "./node_modules/nodemon/bin/nodemon.js -e ts  --exec \"npm run start\"",
     "compile": "tsc",
-    "start": "tsc && node --inspect ./dist/index.js"
+    "start": "node --inspect ./dist/index.js",
+    "copy": "gcloud compute copy-files /Users/rkanadam/workspace/sssbcsj_api/dist ssbcsj:/home/rkanadam/sssbcsj_api/dist-DIR --zone \"us-west1-b\" --project \"registrar-145216\""
   },
   "author": "",
   "license": "ISC",
