@@ -17,6 +17,12 @@ import {
     getUserServiceSignups,
     saveServiceSignup
 } from "./service-signups";
+
+import {
+    getBirthdayHomeBhajanSignups,
+    newBirthdayHomeBhajanSignup,
+} from "./birthday";
+
 import {isEmpty} from "lodash";
 import * as yar from "@hapi/yar";
 import firebase from "firebase";
@@ -107,6 +113,35 @@ const init = async () => {
     });
 
     server.auth.default('firebase');
+
+    server.route({
+        method: 'GET',
+        path: '/birthday/signups',
+        handler: getBirthdayHomeBhajanSignups,
+        options: {
+            auth: false
+        }
+    });
+
+    server.route({
+        method: 'POST',
+        path: '/birthday/signups',
+        handler: newBirthdayHomeBhajanSignup,
+        options: {
+            auth: false,
+            validate: {
+                payload: Joi.object({
+                    name: Joi.string().min(1).max(255).required(),
+                    email: Joi.string().min(1).max(255).required(),
+                    phoneNumber: Joi.string().min(10).max(10).required(),
+                    address: Joi.string().min(1).max(255).required(),
+                    instructions: Joi.string().min(1).max(1024).optional().default(""),
+                    date: Joi.string().min(1).max(1024).required(),
+                }).options({stripUnknown: true})
+            }
+        }
+    });
+
 
     server.route({
         method: 'GET',
@@ -345,20 +380,21 @@ const init = async () => {
     initializeFirebase();
     await authorize();
     await server.register({
-        plugin: yar,
-        options: {
-            storeBlank: false,
-            maxCookieSize: 2048,
-            cache: {
-                expiresIn: 30 * 60 * 1000
-            },
-            cookieOptions: {
-                password: 'ab5d6f066d3818594a98d373d2a888c4aebed4175581a02df920a92b1ddaf22a9f561c464f66915dce8d5bd86a0fb51e4c58f61410f9b4cf108c5acfdbfc2fd1',
-                isSecure: process.env.NODE_ENV !== 'development',
-                isSameSite: 'Lax',
+            plugin: yar,
+            options: {
+                storeBlank: false,
+                maxCookieSize: 2048,
+                cache: {
+                    expiresIn: 30 * 60 * 1000
+                },
+                cookieOptions: {
+                    password: 'ab5d6f066d3818594a98d373d2a888c4aebed4175581a02df920a92b1ddaf22a9f561c464f66915dce8d5bd86a0fb51e4c58f61410f9b4cf108c5acfdbfc2fd1',
+                    isSecure: process.env.NODE_ENV !== 'development',
+                    isSameSite: 'Lax',
+                }
             }
         }
-    });
+    );
     await server.register({
         plugin: blipp
     });

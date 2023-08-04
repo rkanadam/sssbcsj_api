@@ -18,11 +18,14 @@ const SCOPES = [
     "https://www.googleapis.com/auth/drive.metadata.readonly",
     "https://www.googleapis.com/auth/drive.appdata",
     "https://www.googleapis.com/auth/drive.metadata",
-    "https://www.googleapis.com/auth/drive.photos.readonly"
+    "https://www.googleapis.com/auth/drive.photos.readonly",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/calendar.events.readonly"
 ];
 const CRED_PATH = 'secrets/gsheets.json';
 const FIREBASE_CRED_PATH = 'secrets/firebase.json';
-const GOOGLE_API_KEY_PATH = 'secrets/google.api.key.txt';
 const TWILIO_API_KEY_PATH = 'secrets/twilio.json';
 const MAILGUN_API_KEY_PATH = 'secrets/mailgun.json';
 
@@ -45,6 +48,7 @@ const getTemplate = (templateName: string, subject: string): MailgunTemplate => 
 }
 mailGunApi.templates['ServiceSignupConfirmation'] = getTemplate('ServiceSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up!");
 mailGunApi.templates['DevotionSignupConfirmation'] = getTemplate('DevotionSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up!");
+mailGunApi.templates['BirthdayHomeBhajanSignupConfirmation'] = getTemplate('BirthdayHomeBhajanSignupConfirmation', "Sathya Sai Baba Center of Central San Jose - Thank you for signing up for hosting Swami at home on {{date}}!");
 
 const SALT = randomBytes(Math.ceil(13 / 2)).toString('hex').slice(0, 13);
 
@@ -131,14 +135,14 @@ const sendSMS = async (messages: Array<{ to: string, message: string }>) => {
     return true;
 }
 
-const sendEMail = async (messages: Array<{ to: string, subject: string, message: string }>) => {
+const sendEMail = async (messages: Array<{ to: string | string[], subject: string, message: string }>) => {
     for (const message of messages) {
         await mailGunApi.send(message.to, message.subject, message.message).then(() => true);
     }
     return true;
 }
 
-const sendTemplateEMail = async (to: string, template: string, params: any, cc = "") => {
+const sendTemplateEMail = async (to: string | string[], template: string, params: any, cc = "") => {
     return mailGunApi.sendFromTemplate(to, mailGunApi.templates[template], params)
 }
 
