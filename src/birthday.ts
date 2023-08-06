@@ -31,12 +31,12 @@ export async function newBirthdayHomeBhajanSignup(req: Request, response: Respon
     const gCal = google.calendar({version: "v3"});
     const signup = req.payload as BirthdaySignup;
     const startTime = new Date(signup.date);
-    startTime.setHours(20);
-    startTime.setMinutes(0);
+    startTime.setHours(19);
+    startTime.setMinutes(30);
     startTime.setSeconds(0);
     startTime.setMilliseconds(0);
     const endTime = new Date(startTime.toISOString());
-    endTime.setHours(21);
+    endTime.setHours(20);
 
     const description = `
     
