@@ -42,6 +42,9 @@ export async function newBirthdayHomeBhajanSignup(req: Request, response: Respon
     
 98th Bhajans at the residence of ${signup.name} 
 =================================
+Location: ${signup.address}
+
+ 
 ${signup.instructions}
 =================================
 Host Phone Number: ${signup.phoneNumber}
@@ -67,6 +70,7 @@ Please contact Sudheesh Madhavan, 408-667-9448, for any questions.
         requestBody: {
             summary: `Residence of ${signup.name} - 98th Birthday Bhajans`,
             description,
+            location: signup.address,
             start: {dateTime: startTime.toISOString(), timeZone: "America/Los_Angeles"},
             end: {dateTime: endTime.toISOString(), timeZone: "America/Los_Angeles"},
         }
