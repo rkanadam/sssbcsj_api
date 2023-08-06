@@ -14,7 +14,7 @@ export async function getBirthdayHomeBhajanSignups(req: Request, response: Respo
         timeMin: beginningOfYear.toISOString(),
         timeMax: swamisBirthday.toISOString()
     });
-    return calendarResponse.data;
+    return calendarResponse.data.items;
 }
 
 interface BirthdaySignup {

@@ -133,7 +133,7 @@ const init = async () => {
                 payload: Joi.object({
                     name: Joi.string().min(1).max(255).required(),
                     email: Joi.string().min(1).max(255).required(),
-                    phoneNumber: Joi.string().min(10).max(10).required(),
+                    phoneNumber: Joi.string().min(1).max(12).required(),
                     address: Joi.string().min(1).max(255).required(),
                     instructions: Joi.string().min(1).max(1024).optional().default(""),
                     date: Joi.string().min(1).max(1024).required(),
