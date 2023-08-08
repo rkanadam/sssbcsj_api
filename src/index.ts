@@ -135,7 +135,7 @@ const init = async () => {
                     email: Joi.string().min(1).max(255).required(),
                     phoneNumber: Joi.string().min(1).max(12).required(),
                     address: Joi.string().min(1).max(255).required(),
-                    instructions: Joi.string(),
+                    instructions: Joi.string().allow('', undefined, null).empty("").optional(),
                     date: Joi.string().min(1).max(1024).required(),
                 }).options({stripUnknown: true})
             }
