@@ -2,7 +2,7 @@ import {isEmpty} from "lodash";
 import {Request, ResponseToolkit} from "@hapi/hapi";
 import {google} from "googleapis";
 
-const SHEET_NAME = '2023 Registration';
+const SHEET_NAME = '2024 Registration';
 const properties = [
     'year',
     'firstnameofchild',
@@ -62,7 +62,7 @@ async function saveSSERegistrations(req: Request, response: ResponseToolkit) {
         const sheets = google.sheets({version: 'v4'});
         for (const registration of registrations) {
             const range = registration[0] || "";
-            registration[0] = "2023";
+            registration[0] = "2024";
             if (isEmpty(range)) {
                 await sheets.spreadsheets.values.append({
                     spreadsheetId: '1jyMtDqvSoKgNy7wXmuE_mqQ4K_I7EL7O96BDDz_AMM4',
